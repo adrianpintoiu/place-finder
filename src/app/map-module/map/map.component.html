@@ -1,1 +1,21 @@
-<p>map works!</p>
+<google-map #map height="100%" width="100%"
+  [center]="center" [options]="mapOptions"
+></google-map>
+
+<!-- <google-map #map></google-map> -->
+
+<div class="map-search-container">
+
+  <form class="example-form" [formGroup]="mapLocation">
+    <mat-form-field class="example-full-width">
+      <mat-label>Location</mat-label>
+      <input matInput #locationInput formControlName="location" placeholder="Enter a location">
+    </mat-form-field>
+  </form>
+
+</div>
+
+<div id="infowindow-content">
+  <span id="place-name" class="title"></span><br />
+  <span id="place-address">asadadad</span>
+</div>
