@@ -1,7 +1,6 @@
 import { Component, ElementRef, OnInit, ViewChild } from "@angular/core";
-import { FormBuilder, FormControl, FormGroup, Validators } from "@angular/forms";
-import { GoogleMap } from "@angular/google-maps";
-import { debounceTime, distinctUntilChanged } from "rxjs/operators";
+import { MapCategoryEnum } from "../enum/map-categories.enum";
+import { PlaceModel } from "../models/place-model";
 
 @Component({
   selector: 'app-map',
@@ -9,126 +8,154 @@ import { debounceTime, distinctUntilChanged } from "rxjs/operators";
   styleUrls: ['./map.component.scss']
 })
 export class MapComponent implements OnInit {
+  @ViewChild("mapElement", { static: true }) mapElement: ElementRef;
   @ViewChild("map", { static: true }) map: google.maps.Map;
-  @ViewChild("locationInput", { static: true }) locationInput: ElementRef;
-  center: google.maps.LatLngLiteral;
-  mapOptions: google.maps.MapOptions = {
-    scrollwheel: true,
-    disableDoubleClickZoom: true,
-    minZoom: 8,
-  };
-
-
+  places: PlaceModel[] = [];
+  categorySearch: MapCategoryEnum;
+  markers: google.maps.Marker[] = [];
   options = {
-    // componentRestrictions: { country: 'ro' },
-    // fields: ["formatted_address", "geometry", "name", "photos"],
-    // strictBounds: false,
+    strictBounds: false,
     types: ["establishment"],
   } as google.maps.places.AutocompleteOptions;
+  old: google.maps.InfoWindow = new google.maps.InfoWindow;
+  constructor() { }
 
-  public mapLocation: FormGroup;
+  onCategoryValueEvent(event: MapCategoryEnum): void {
+    this.categorySearch = event;
+    this.places = [];
+    this.clearAllMarkers();
+    this.nearbySearch(this.categorySearch, this.map.getCenter());
+  }
 
-
-  constructor(private formBuilder: FormBuilder) {
-    navigator.geolocation.getCurrentPosition((position) => {
-      this.center = {
-        lat: position.coords.latitude,
-        lng: position.coords.longitude,
-      };
-    });
-   }
+  onInputLocationValueEvent(event: ElementRef<HTMLInputElement>): void {
+    this.categorySearch = null as any;
+    this.places = [];
+    this.clearAllMarkers();
+    this.searchLocation(event);
+  }
 
   ngOnInit(): void {
+    navigator.geolocation.getCurrentPosition((location) => {
+      this.map = new google.maps.Map(this.mapElement.nativeElement, {
+        center: { lat: location.coords.latitude, lng: location.coords.longitude },
+        zoom: 15
+      });
+      this.map.addListener('dragend', () => {
+        if (this.categorySearch) {
+          this.nearbySearch(this.categorySearch, this.map.getCenter());
+        }
+      });
+    }, (error) => {
+      console.info('Cannot find your location', error);
+    });
+  }
 
-    this.generateLocationForm();
-    setTimeout(() => {
-      console.log("center", JSON.stringify(this.map.getCenter()));
-    }, 0);
-
-    const request = {
-      location:  this.center,
-      radius: '500',
-      type: ['restaurant']
-    };
-
-    let options = {
-      enableHighAccuracy: true,
-      timeout: 5000,
-      maximumAge: 0
-    };
-
+  nearbySearch(value: MapCategoryEnum, center: google.maps.LatLng): void {
     const service = new google.maps.places.PlacesService(this.map);
     service.nearbySearch({
-      location: this.center,
-      radius: 1000,
-      type: 'store'
+      location: { lat: center.lat(), lng: center.lng() },
+      radius: 2000,
+      type: value
     }, (results, status) => {
-      console.log('results', results);
-      console.log('status', status);
-      if (status === google.maps.places.PlacesServiceStatus.OK){
-          console.log('rs', results);
+      if (status === google.maps.places.PlacesServiceStatus.OK) {
+        this.places = this.formatPlaces(results);
+        this.createMarkers(results);
       }
     });
-
-
-    // this.mapLocation.valueChanges.pipe(debounceTime(0), distinctUntilChanged())
-    // .subscribe(term => {
-    //   if (!term){
-    //     console.info("Please insert a location");
-    //     return;
-    //   }
-    //   this.searchLocation(term);
-    // });
-
   }
 
-  generateLocationForm(): void{
-    this.mapLocation = this.formBuilder.group({
-      location: new FormControl('', Validators.compose([Validators.required])),
+  clearAllMarkers(): void {
+    this.markers.forEach((marker) => {
+      marker.setMap(null);
+    });
+    this.markers = [];
+  }
+
+  createMarkers(places: google.maps.places.PlaceResult[]) {
+    if (!places) {
+      return;
+    }
+    places.forEach((item: google.maps.places.PlaceResult) => {
+      if (!item.geometry?.location) {
+        return;
+      }
+      // Create marker
+      const marker = new google.maps.Marker({
+        map: this.map,
+        position: item.geometry.location,
+      });
+      this.markers.push(marker);
+      marker.addListener("mouseover", () => {
+        const infowindow = new google.maps.InfoWindow();
+        if (item.place_id) {
+          const service = new google.maps.places.PlacesService(this.map);
+          service.getDetails({ placeId: item.place_id }, (place, status) => {
+            if (status === google.maps.places.PlacesServiceStatus.OK) {
+              infowindow.setContent([
+                place.name,
+                place.formatted_address,
+                place.website,
+                place.rating,
+                place.formatted_phone_number].join("<br />"));
+            }
+          });
+          if (this.old !== infowindow) {
+            this.old.close();
+            infowindow.open(this.map, marker);
+          }
+        }
+
+        this.old = infowindow;
+      });
     });
   }
 
-  searchLocation(value: any): void{
-    const inputElement = this.locationInput.nativeElement as HTMLInputElement;
-    const autocomplete = new google.maps.places.Autocomplete(inputElement, this.options);
+  onCardClick(item: PlaceModel, index: number): void {
+    if (item.location) {
+      if (this.markers[index].getAnimation() != google.maps.Animation.BOUNCE) {
+        this.markers[index].setAnimation(google.maps.Animation.BOUNCE);
+        this.map.setCenter(item.location);
+      }
+    }
+  }
+
+  formatPlaces(items: google.maps.places.PlaceResult[]): PlaceModel[] {
+    let places: PlaceModel[] = [];
+    items.forEach((item: google.maps.places.PlaceResult) => {
+      if (!item.geometry?.location) {
+        return;
+      }
+      let place = new PlaceModel({
+        name: item.name,
+        vicinity: item.vicinity ? item.vicinity : '',
+        photo: item.photos ? item.photos[0].getUrl({ 'maxWidth': 600, 'maxHeight': 400 }) : '',
+        location: item.geometry.location
+      });
+      places.push(place);
+    });
+    return places;
+  }
+
+
+  searchLocation(value: ElementRef<HTMLInputElement>): void {
+    const autocomplete = new google.maps.places.Autocomplete(value.nativeElement, this.options);
     autocomplete.bindTo("bounds", this.map);
-    const infowindow = new google.maps.InfoWindow();
-    const infowindowContent = document.getElementById("infowindow-content") as HTMLElement;
-    infowindow.setContent(infowindowContent);
-    const marker = new google.maps.Marker({
-      anchorPoint: new google.maps.Point(0, -29),
-    });
-    // const marker = new google.maps.Marker();
-
 
     autocomplete.addListener('place_changed', () => {
-      infowindow.close();
-      marker.setVisible(false);
-
       const place: google.maps.places.PlaceResult = autocomplete.getPlace();
       console.log('place', place);
       if (!place.geometry || !place.geometry.location) {
         window.alert("No details available for input: '" + place.name + "'");
         return;
       }
+      this.map.setCenter(place.geometry.location);
       if (place.geometry.viewport) {
         this.map.fitBounds(place.geometry.viewport);
       } else {
         this.map.setCenter(place.geometry.location);
         this.map.setZoom(14);
       }
-      marker.setPosition(place.geometry.location);
-      marker.setVisible(true);
-      // infowindow.setContent('fsafa');
-      // infowindow.open(this.map, marker);
-      // infowindowContent.children["place-name"].textContent = place.name;
-      // infowindowContent.children["place-address"].textContent =
-      //   place.formatted_address;
-      // infowindow.open(this.map, marker);
-
+      this.createMarkers([place]);
     });
-
   }
-
-
 }

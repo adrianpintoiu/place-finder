@@ -1,0 +1,22 @@
+<form class="example-form" [formGroup]="mapLocationForm">
+    <mat-form-field class="example-full-width">
+      <mat-label>Location</mat-label>
+        <input matInput #locationInput formControlName="location" placeholder="Enter a location">
+        <button mat-button matSuffix mat-icon-button aria-label="Search">
+          <mat-icon>search</mat-icon>
+        </button>
+    </mat-form-field>
+
+    <h4>Select Catergory</h4>
+    <mat-form-field>
+      <mat-label>Categories</mat-label>
+      <mat-select  formControlName="selectCategory" (selectionChange)="onCategoryChange($event)">
+        <mat-option *ngFor="let category of categories" [value]="category.value">
+          {{category.viewValue}}
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <button mat-flat-button color="primary" (click)="resetForm()">Reset</button>
+
+  </form>
