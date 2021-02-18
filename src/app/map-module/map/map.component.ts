@@ -17,7 +17,7 @@ export class MapComponent implements OnInit {
     strictBounds: false,
     types: ["establishment"],
   } as google.maps.places.AutocompleteOptions;
-  old: google.maps.InfoWindow = new google.maps.InfoWindow;
+  oldInfoWindow: google.maps.InfoWindow = new google.maps.InfoWindow;
   constructor() { }
 
   onCategoryValueEvent(event: MapCategoryEnum): void {
@@ -99,13 +99,13 @@ export class MapComponent implements OnInit {
                 place.formatted_phone_number].join("<br />"));
             }
           });
-          if (this.old !== infowindow) {
-            this.old.close();
+          if (this.oldInfoWindow !== infowindow) {
+            this.oldInfoWindow.close();
             infowindow.open(this.map, marker);
           }
         }
 
-        this.old = infowindow;
+        this.oldInfoWindow = infowindow;
       });
     });
   }
@@ -143,7 +143,6 @@ export class MapComponent implements OnInit {
 
     autocomplete.addListener('place_changed', () => {
       const place: google.maps.places.PlaceResult = autocomplete.getPlace();
-      console.log('place', place);
       if (!place.geometry || !place.geometry.location) {
         window.alert("No details available for input: '" + place.name + "'");
         return;

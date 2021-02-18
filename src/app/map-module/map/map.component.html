@@ -1,7 +1,8 @@
 <div id="map" #mapElement></div>
 
 <div class="map-search-container">
-  <app-map-search-form (inputLocationValueEvent)="onInputLocationValueEvent($event)" (categoryValueEvent)="onCategoryValueEvent($event)"></app-map-search-form>
+  <app-map-search-form (inputLocationValueEvent)="onInputLocationValueEvent($event)"
+   (categoryValueEvent)="onCategoryValueEvent($event)"></app-map-search-form>
 
   <div class="place-container">
     <ng-container *ngIf="places">
