@@ -28,7 +28,6 @@ export class MapComponent implements OnInit {
   }
 
   onInputLocationValueEvent(event: ElementRef<HTMLInputElement>): void {
-    this.categorySearch = null as any;
     this.places = [];
     this.clearAllMarkers();
     this.searchLocation(event);
